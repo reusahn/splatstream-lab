@@ -1,0 +1,44 @@
+{
+  "project_title": "SplatStream Lab",
+  "goal": "Quantify size / quality / encoding / transfer trade-offs for 3D Gaussian Splatting.",
+  "real_scene_minimum": 3,
+  "recommended_scene_categories": [
+    "bounded indoor scene with fine texture",
+    "outdoor scene with foliage/high-frequency geometry",
+    "human or character-scale capture if licensing permits"
+  ],
+  "compression_sweep": [
+    {
+      "prune_fraction": 0.0,
+      "quant_bits": 32
+    },
+    {
+      "prune_fraction": 0.25,
+      "quant_bits": 16
+    },
+    {
+      "prune_fraction": 0.5,
+      "quant_bits": 16
+    },
+    {
+      "prune_fraction": 0.5,
+      "quant_bits": 8
+    },
+    {
+      "prune_fraction": 0.75,
+      "quant_bits": 8
+    }
+  ],
+  "required_metrics": [
+    "gaussian_count",
+    "payload_bytes",
+    "compression_ratio",
+    "encoding_time_ms",
+    "heldout_PSNR",
+    "heldout_SSIM",
+    "LPIPS_on_GPU_run",
+    "render_fps_on_GPU_run",
+    "transfer_time_at_user_defined_bandwidths"
+  ],
+  "claim_policy": "Never label an illustrative bitrate as a Netflix streaming target."
+}

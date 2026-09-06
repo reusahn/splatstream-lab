@@ -1,0 +1,17 @@
+[project]
+name = "splatstream-lab"
+version = "0.1.0"
+description = "Compression, quality, and progressive-streaming research harness for 3D Gaussian Splatting."
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.26",
+  "Pillow>=10.0",
+  "scikit-image>=0.22"
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+gpu = ["torch>=2.2", "gsplat>=1.5"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
