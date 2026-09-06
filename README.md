@@ -8,8 +8,6 @@ This project was designed around a practical systems question:
 
 > What combination of pruning, quantization, representation choices, and progressive transmission can reduce a Gaussian Splatting scene enough for streaming while preserving rendered quality?
 
-![Portable compression preview](docs/portable_rate_distortion_preview.jpg)
-
 The project deliberately separates **portable compression research** from **GPU rendering evaluation**:
 
 - `cpu_reference`: deterministic reference renderer used to validate compression logic and run reproducible tests on any machine.
@@ -136,7 +134,7 @@ The included sweep evaluates:
 
 The exact results depend on the scene and renderer. The repository never hard-codes a claimed quality improvement.
 
-## Why this project is useful
+## Why it is useful
 
 The work is not "I opened a Gaussian viewer." It demonstrates:
 
