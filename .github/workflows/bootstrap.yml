@@ -3,19 +3,22 @@ name: bootstrap-project
 on:
   push:
     branches: [main]
+    paths:
+      - '.bootstrap/READY'
 
 permissions:
   contents: write
 
 jobs:
   bootstrap:
-    if: github.event.head_commit.message != 'Bootstrap project files'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Expand project archive
+      - name: Reassemble and expand project archive
         run: |
-          base64 -d .bootstrap/project.tar.gz.b64 > /tmp/project.tar.gz
+          cat .bootstrap/chunk_*.txt > /tmp/project.tar.gz.b64
+          base64 -d /tmp/project.tar.gz.b64 > /tmp/project.tar.gz
+          gzip -t /tmp/project.tar.gz
           tar -xzf /tmp/project.tar.gz -C .
           rm -rf .bootstrap
           rm -f .github/workflows/bootstrap.yml
