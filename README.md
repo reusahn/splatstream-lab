@@ -4,60 +4,50 @@
 
 **Compression, quality, and progressive-streaming experiments for 3D Gaussian Splatting**
 
-This project was designed around a practical systems question:
+SplatStream Lab is a research harness for studying how pruning, quantization, compact payload encoding, and progressive transmission affect the size and rendered quality of 3D Gaussian Splatting scenes.
 
-> What combination of pruning, quantization, representation choices, and progressive transmission can reduce a Gaussian Splatting scene enough for streaming while preserving rendered quality?
-
-The project deliberately separates **portable compression research** from **GPU rendering evaluation**:
-
-- `cpu_reference`: deterministic reference renderer used to validate compression logic and run reproducible tests on any machine.
-- `gsplat` adapter: optional CUDA path for full 3DGS rendering on real pretrained scenes.
-- `streaming`: converts compressed model size into transfer-time / startup-time estimates under user-provided bandwidth assumptions.
-- `ply_io`: reads standard GraphDeco-style Gaussian Splatting PLY files without external PLY dependencies.
-
-No Netflix-internal target is assumed. Any bitrate used by this repository is explicitly user-configured and illustrative.
+The project separates portable systems validation from full GPU rendering so that compression logic, payload accounting, and experiment orchestration remain reproducible on CPU while real-scene evaluation is performed with CUDA.
 
 ## Research questions
 
-1. How much model size can be removed by view-independent importance pruning?
+1. How much model size can be removed through view-independent importance pruning?
 2. How much additional reduction comes from 16-bit or 8-bit parameter quantization?
-3. What is the rendered-quality cost measured by PSNR / SSIM?
-4. At what point does aggressive compression create a visible quality cliff?
-5. How much does each configuration reduce transfer time at a chosen network bitrate?
-6. How can a scene be ordered progressively so that the most important Gaussians arrive first?
-7. How do encoding time and payload size change as scene size grows?
+3. How does compression affect rendered quality measured with PSNR and SSIM?
+4. Where does aggressive compression create a visible quality cliff?
+5. How does payload size translate into transfer time across illustrative network conditions?
+6. Can importance ordering support useful progressive refinement?
+7. How do encoding cost and payload size scale with scene complexity?
 
-## Architecture
+## System overview
 
 ```text
-3DGS PLY / Synthetic Scene
+3DGS PLY / synthetic scene
           │
           ▼
   GaussianScene model
           │
-          ├─────────────── Baseline render
+          ├────────────── baseline render
           │
           ▼
- Importance scoring
+  importance scoring
           │
           ▼
-       Pruning
+       pruning
           │
           ▼
- Parameter quantization
+ parameter quantization
           │
           ▼
- Binary payload encoding
+ compact payload encoding
           │
-          ├─────────────── model bytes / encode time
-          │
-          ├─────────────── progressive chunks
-          │
-          ▼
-   Reconstructed scene
+          ├────────────── payload bytes / encode time
+          ├────────────── progressive prefixes
           │
           ▼
-       Rendering
+ reconstructed scene
+          │
+          ▼
+       rendering
           │
           ▼
  PSNR / SSIM / MAE
@@ -65,6 +55,17 @@ No Netflix-internal target is assumed. Any bitrate used by this repository is ex
           ▼
  size-quality-streaming tradeoff
 ```
+
+## Core components
+
+- `splatstream/model.py` — Gaussian scene representation
+- `splatstream/ply_io.py` — GraphDeco-style 3DGS PLY reader
+- `splatstream/compress.py` — pruning, quantization, payload encoding, progressive ordering
+- `splatstream/streaming.py` — transfer-time estimation
+- `splatstream/cpu_renderer.py` — deterministic CPU reference renderer for portable validation
+- `splatstream/metrics.py` — PSNR, SSIM, MAE
+- `splatstream/real_ply_experiment.py` — real-PLY compression sanity-check pipeline
+- `notebooks/SplatStream_Lab_CUDA_Validation.ipynb` — reproducible CUDA evaluation on Mip-NeRF 360 / Bonsai
 
 ## Quick start
 
@@ -76,32 +77,21 @@ python -m splatstream.experiment \
   --height 192
 ```
 
-Outputs:
-
-```text
-results/demo/
-├── benchmark.csv
-├── summary.json
-├── baseline_view_00.png
-├── ...
-└── compressed_*.png
-```
-
 Run tests:
 
 ```bash
 pytest -q
 ```
 
-## Real GraphDeco PLY
+## Real 3DGS PLY evaluation
 
-Inspect:
+Inspect a scene:
 
 ```bash
 python -m splatstream.inspect_ply /path/to/point_cloud.ply
 ```
 
-Run a portable compression sweep using the DC color component as a CPU reference:
+Run the portable compression sweep:
 
 ```bash
 python -m splatstream.real_ply_experiment \
@@ -110,62 +100,49 @@ python -m splatstream.real_ply_experiment \
   --max-gaussians 50000
 ```
 
-This CPU path is not presented as a replacement for the official 3DGS rasterizer. It exists to validate model parsing, compression behavior, size accounting, and experiment orchestration without requiring CUDA.
+The CPU renderer is intentionally a reference implementation for compression-system validation. It does not replace a full anisotropic, view-dependent 3DGS rasterizer.
 
-## CUDA / gsplat evaluation
+## Reproducible CUDA evaluation
 
-On an NVIDIA CUDA machine:
+Open the Colab notebook from the badge above and select a GPU runtime. The notebook uses a pinned `gsplat` revision, downloads Mip-NeRF 360 / Bonsai, trains a 7,000-step baseline, exports the checkpoint to PLY, and packages the measured artifacts required to reproduce the run.
 
-```bash
-pip install -e ".[gpu]"
+A successful run produces:
+
+```text
+splatstream_bonsai_evidence.zip
+├── environment.json
+├── splatstream_bonsai_7k.log
+├── checkpoint_inventory.txt
+├── ply_inventory.txt
+├── gsplat_results/
+└── portable_sanity/
 ```
-
-Use `splatstream/gsplat_adapter.py` as the integration point for real full-SH, anisotropic Gaussian rendering. The final portfolio report should use the same compression presets with full rendered views on an open dataset.
 
 ## Compression presets
 
-The included sweep evaluates:
+The reference sweep evaluates:
 
 - baseline float32
-- 25% importance pruning + float16-like reconstruction
+- 25% importance pruning + 16-bit quantization
 - 50% pruning + 16-bit quantization
 - 50% pruning + 8-bit quantization
 - 75% pruning + 8-bit quantization
 
-The exact results depend on the scene and renderer. The repository never hard-codes a claimed quality improvement.
+The exact operating points depend on scene content and renderer. Reported measurements should always include the corresponding quality metrics and evaluation environment.
 
-## Why it is useful
+## Evaluation discipline
 
-The work is not "I opened a Gaussian viewer." It demonstrates:
+For real-scene results, record:
 
-- reading a production 3DGS representation
-- building an experiment harness
-- defining a reference baseline
-- implementing compression transforms
-- measuring payload size and encode time
-- evaluating rendered quality
-- studying rate-distortion tradeoffs
-- designing progressive delivery
-- maintaining deterministic tests and CI
-
-## Open-data plan for final evaluation
-
-Use open scenes from the original 3DGS ecosystem or another explicitly redistributable dataset. Record in the report:
-
-- dataset name and license
-- number of training/test views
-- number of Gaussians
+- dataset and source
+- training/test split
+- Gaussian count
 - baseline PLY size
 - compressed payload size
+- compression ratio
 - encoding time
-- rendering hardware
-- PSNR / SSIM
-- transfer-time estimate at several illustrative bandwidths
+- GPU model and CUDA/PyTorch versions
+- PSNR / SSIM and, when available, LPIPS
+- transfer-time estimates under explicitly stated illustrative bandwidths
 
-## Important claims policy
-
-Do **not** describe the CPU reference renderer as Netflix-quality rendering or as the official 3DGS rasterizer.
-
-Do **not** claim a compression ratio, quality score, or training-time reduction until the corresponding experiment has actually been run.
-
-The portable benchmark included in the repository is a systems-validation benchmark. The final application version should add at least one real open 3DGS scene rendered with a full Gaussian rasterizer.
+Compression ratio is treated as a rate-distortion result rather than a standalone number: model-size reduction is only meaningful together with rendered-quality impact.
