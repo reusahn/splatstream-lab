@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import time
@@ -8,13 +9,24 @@ from pathlib import Path
 import torch
 
 
-def run(cmd, *, cwd=None):
+def run(cmd, *, cwd=None, env=None):
     print("\n$", " ".join(map(str, cmd)), flush=True)
-    subprocess.run([str(x) for x in cmd], cwd=None if cwd is None else str(cwd), check=True)
+    merged_env = os.environ.copy()
+    if env:
+        merged_env.update({str(k): str(v) for k, v in env.items()})
+    subprocess.run(
+        [str(x) for x in cmd],
+        cwd=None if cwd is None else str(cwd),
+        check=True,
+        env=merged_env,
+    )
 
 
 def main():
-    print("PyTorch:", torch.__version__)
+    print("Python:", sys.version)
+    print("Executable:", sys.executable)
+    print("PyTorch before dependency setup:", torch.__version__)
+    print("Torch CUDA:", torch.version.cuda)
     print("CUDA available:", torch.cuda.is_available())
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is unavailable. In Colab choose Runtime > Change runtime type > GPU.")
@@ -30,7 +42,11 @@ def main():
     else:
         run(["git", "-C", gsplat, "pull", "--ff-only"])
 
-    run([sys.executable, "-m", "pip", "install", "-e", gsplat])
+    # gsplat's current examples requirements intentionally pin a mutually
+    # compatible torch/torchvision pair. Install those first, then install the
+    # source tree without AOT CUDA compilation. BUILD_NO_CUDA=1 is the
+    # upstream-recommended development/JIT path: kernels compile lazily on the
+    # first real CUDA call instead of during pip editable-wheel construction.
     run([
         sys.executable,
         "-m",
@@ -41,8 +57,42 @@ def main():
         "--no-build-isolation",
     ])
 
+    run(
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "-e",
+            gsplat,
+            "--no-build-isolation",
+        ],
+        env={"BUILD_NO_CUDA": "1"},
+    )
+
+    # Re-import in a fresh process so the version printed here reflects any
+    # torch change made by examples/requirements.txt.
+    run([
+        sys.executable,
+        "-c",
+        (
+            "import torch, gsplat; "
+            "print('PyTorch after setup:', torch.__version__); "
+            "print('Torch CUDA:', torch.version.cuda); "
+            "print('CUDA:', torch.cuda.is_available()); "
+            "print('GPU:', torch.cuda.get_device_name(0))"
+        ),
+    ])
+
     if not bonsai.exists():
-        run([sys.executable, examples / "datasets/download_dataset.py"], cwd=examples)
+        run([
+            sys.executable,
+            examples / "datasets/download_dataset.py",
+            "--dataset",
+            "mipnerf360",
+            "--save-dir",
+            examples / "data",
+        ], cwd=examples)
     if not bonsai.exists():
         raise RuntimeError(f"Dataset download completed but Bonsai was not found at {bonsai}")
 
@@ -71,7 +121,7 @@ def main():
         "7000",
     ]
 
-    print("\nStarting 7k Bonsai training. This is the long step.")
+    print("\nStarting 7k Bonsai training. The first CUDA call may spend several minutes JIT-compiling gsplat kernels. That is expected.")
     start = time.time()
     run(cmd, cwd=examples)
     elapsed = time.time() - start
