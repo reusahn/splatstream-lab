@@ -77,9 +77,6 @@ def version_tuple(v: str):
 
 def cuda_build_env():
     major, minor = torch.cuda.get_device_capability(0)
-    # gsplat uses PyTorch's ninja JIT build. On hosted notebooks, parallel
-    # C++/CUDA compilation can exceed system RAM before training even starts.
-    # Compile one translation unit at a time and only for the active GPU arch.
     return {
         "CUDA_VISIBLE_DEVICES": "0",
         "MAX_JOBS": "1",
@@ -118,9 +115,19 @@ def check_environment():
 def setup_gsplat():
     print("\n[1/6] Setting up pinned gsplat source")
     if not GSPLAT_DIR.exists():
-        run(["git", "clone", "https://github.com/nerfstudio-project/gsplat.git", GSPLAT_DIR])
+        run(["git", "clone", "--recursive", "https://github.com/nerfstudio-project/gsplat.git", GSPLAT_DIR])
     run(["git", "fetch", "--all", "--tags"], cwd=GSPLAT_DIR)
     run(["git", "reset", "--hard", GSPLAT_COMMIT], cwd=GSPLAT_DIR)
+
+    # The pinned gsplat revision keeps GLM and googletest as git submodules.
+    # A normal non-recursive clone leaves gsplat/cuda/csrc/third_party/glm empty,
+    # which fails JIT compilation at <glm/gtc/type_ptr.hpp>.
+    run(["git", "submodule", "sync", "--recursive"], cwd=GSPLAT_DIR)
+    run(["git", "submodule", "update", "--init", "--recursive"], cwd=GSPLAT_DIR)
+    glm_header = GSPLAT_DIR / "gsplat/cuda/csrc/third_party/glm/glm/gtc/type_ptr.hpp"
+    if not glm_header.exists():
+        raise RuntimeError(f"gsplat GLM submodule is incomplete; expected header not found: {glm_header}")
+    print("GLM submodule ready:", glm_header)
 
     run([sys.executable, "-m", "pip", "install", "-U", "pip", "setuptools<82", "wheel", "ninja", "rich"])
     deps = [
