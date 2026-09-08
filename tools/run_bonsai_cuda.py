@@ -46,6 +46,8 @@ def run_live(cmd, *, cwd=None, env=None, log_path=None):
     cmd = [str(x) for x in cmd]
     print("\n$", " ".join(cmd), flush=True)
     log_file = open(log_path, "w") if log_path else None
+    started = time.time()
+    last_heartbeat = started
     try:
         proc = subprocess.Popen(
             cmd,
@@ -57,11 +59,27 @@ def run_live(cmd, *, cwd=None, env=None, log_path=None):
             bufsize=1,
         )
         assert proc.stdout is not None
-        for line in proc.stdout:
-            print(line, end="")
-            if log_file:
-                log_file.write(line)
-                log_file.flush()
+        while True:
+            line = proc.stdout.readline()
+            if line:
+                print(line, end="")
+                if log_file:
+                    log_file.write(line)
+                    log_file.flush()
+                last_heartbeat = time.time()
+            elif proc.poll() is not None:
+                break
+            else:
+                now = time.time()
+                if now - last_heartbeat >= 60:
+                    elapsed = int(now - started)
+                    msg = f"[heartbeat] process still running after {elapsed // 60}m {elapsed % 60}s\n"
+                    print(msg, end="", flush=True)
+                    if log_file:
+                        log_file.write(msg)
+                        log_file.flush()
+                    last_heartbeat = now
+                time.sleep(1)
         rc = proc.wait()
     finally:
         if log_file:
@@ -79,10 +97,12 @@ def cuda_build_env():
     major, minor = torch.cuda.get_device_capability(0)
     return {
         "CUDA_VISIBLE_DEVICES": "0",
-        "MAX_JOBS": "1",
-        "CMAKE_BUILD_PARALLEL_LEVEL": "1",
+        "MAX_JOBS": "2",
+        "CMAKE_BUILD_PARALLEL_LEVEL": "2",
         "TORCH_CUDA_ARCH_LIST": f"{major}.{minor}",
         "BUILD_EXPERIMENTAL": "0",
+        "VERBOSE": "1",
+        "NINJA_STATUS": "[gsplat %f/%t] ",
     }
 
 
@@ -118,15 +138,12 @@ def setup_gsplat():
         run(["git", "clone", "--recursive", "https://github.com/nerfstudio-project/gsplat.git", GSPLAT_DIR])
     run(["git", "fetch", "--all", "--tags"], cwd=GSPLAT_DIR)
     run(["git", "reset", "--hard", GSPLAT_COMMIT], cwd=GSPLAT_DIR)
-
-    # The pinned gsplat revision keeps GLM and googletest as git submodules.
-    # A normal non-recursive clone leaves gsplat/cuda/csrc/third_party/glm empty,
-    # which fails JIT compilation at <glm/gtc/type_ptr.hpp>.
     run(["git", "submodule", "sync", "--recursive"], cwd=GSPLAT_DIR)
     run(["git", "submodule", "update", "--init", "--recursive"], cwd=GSPLAT_DIR)
+
     glm_header = GSPLAT_DIR / "gsplat/cuda/csrc/third_party/glm/glm/gtc/type_ptr.hpp"
     if not glm_header.exists():
-        raise RuntimeError(f"gsplat GLM submodule is incomplete; expected header not found: {glm_header}")
+        raise RuntimeError(f"GLM submodule is incomplete: {glm_header} is missing")
     print("GLM submodule ready:", glm_header)
 
     run([sys.executable, "-m", "pip", "install", "-U", "pip", "setuptools<82", "wheel", "ninja", "rich"])
@@ -163,13 +180,6 @@ def prepare_dataset():
     if not BONSAI.exists():
         raise RuntimeError(f"Download finished but Bonsai was not found at {BONSAI}")
     print("Bonsai ready:", BONSAI)
-
-
-def clear_failed_jit_cache():
-    cache = Path.home() / ".cache" / "torch_extensions"
-    if cache.exists():
-        print("Clearing previous torch extension build cache:", cache)
-        shutil.rmtree(cache, ignore_errors=True)
 
 
 def diagnostic_bundle():
@@ -222,8 +232,7 @@ def train():
 
     build_env = cuda_build_env()
     print("CUDA JIT build settings:", build_env)
-    print("The first CUDA call may spend several minutes compiling gsplat kernels.")
-    clear_failed_jit_cache()
+    print("The first CUDA call compiles gsplat kernels. Partial JIT objects are preserved so interrupted builds can resume.")
     start = time.time()
     try:
         run_live(cmd, cwd=EXAMPLES, env=build_env, log_path=LOG)
