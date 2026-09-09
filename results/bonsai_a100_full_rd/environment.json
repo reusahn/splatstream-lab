@@ -1,0 +1,9 @@
+{
+  "gpu": "NVIDIA A100-SXM4-40GB",
+  "torch": "2.11.0+cu128",
+  "torch_cuda": "12.8",
+  "gsplat_commit": "28e794ca44a4c25ffc39175370c5ee7b38bfcc36",
+  "base_checkpoint": "/content/gsplat/examples/results/splatstream_bonsai_7k/ckpts/ckpt_6999_rank0.pt",
+  "dataset_path": "/content/gsplat/examples/data/360_v2/bonsai",
+  "method": "single-process held-out evaluation; same Runner/dataset/metric networks reused across presets"
+}
