@@ -8,28 +8,29 @@ SplatStream Lab is a research harness for studying how pruning, quantization, co
 
 The project separates portable systems validation from full GPU rendering so that compression logic, payload accounting, and experiment orchestration remain reproducible on CPU while real-scene evaluation is performed with CUDA.
 
-## Verified real-scene result
+## Verified full-scene CUDA result
 
-A reproducible 7,000-step `gsplat` run on **Mip-NeRF 360 / Bonsai** was completed on an **NVIDIA A100-SXM4-40GB**. The resulting scene contained **941,481 Gaussians** and exported to a **211.90 MiB PLY**.
+A reproducible 7,000-step `gsplat` run on **Mip-NeRF 360 / Bonsai** was completed on an **NVIDIA A100-SXM4-40GB**, producing **947,033 Gaussians**. The baseline held-out result was **29.7705 dB PSNR, 0.927644 SSIM, and 0.150789 LPIPS**.
 
-| Held-out gsplat metric | Result |
-| --- | ---: |
-| PSNR | **29.7369 dB** |
-| SSIM | **0.927614** |
-| LPIPS | **0.151824** |
-| Render time | **0.00303 s/image** |
-| Training-loop elapsed | **419.39 s** |
-| Peak CUDA memory | **1.5814 GiB** |
+The trained checkpoint was then reused for a full-scene held-out CUDA rate-distortion sweep. Every compressed operating point was evaluated with the same Bonsai cameras and the full `gsplat` rasterizer.
 
-A follow-up compression sanity sweep on a 10,000-Gaussian subset of the exported real PLY measured payload reductions from **2.67x to 8.45x**, depending on pruning and quantization settings. Those subset quality numbers use the portable CPU DC-only reference renderer and are intentionally kept separate from the full held-out CUDA metrics above.
+| Preset | Gaussians | zlib payload | Reduction | PSNR | SSIM | LPIPS |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| baseline_f32 | 947,033 | 185.43 MiB | 1.00x | 29.7705 dB | 0.927644 | 0.150789 |
+| prune25_q16 | 710,275 | 70.04 MiB | **2.65x** | **27.6234 dB** | **0.900674** | **0.165871** |
+| prune50_q16 | 473,516 | 46.78 MiB | 3.96x | 23.4229 dB | 0.817833 | 0.236364 |
+| prune50_q8 | 473,516 | 20.24 MiB | 9.16x | 17.2307 dB | 0.565262 | 0.556337 |
+| prune75_q8 | 236,758 | 10.31 MiB | 17.98x | 17.1499 dB | 0.561705 | 0.563792 |
 
-See [`docs/BONSAI_A100_RESULTS.md`](docs/BONSAI_A100_RESULTS.md) for the measured environment, caveats, and compression table. Machine-readable results are under [`results/bonsai_a100_7k/`](results/bonsai_a100_7k/).
+The conservative `prune25_q16` point reduces the entropy-coded experimental payload from **185.43 MiB to 70.04 MiB** while retaining **27.62 dB PSNR / 0.9007 SSIM / 0.1659 LPIPS**. More aggressive compression shows a clear quality cliff, especially at 8-bit quantization.
+
+See [`docs/BONSAI_FULL_CUDA_RD.md`](docs/BONSAI_FULL_CUDA_RD.md) for methodology and interpretation. Machine-readable results are under [`results/bonsai_a100_full_rd/`](results/bonsai_a100_full_rd/). The earlier baseline-only validation is preserved in [`docs/BONSAI_A100_RESULTS.md`](docs/BONSAI_A100_RESULTS.md).
 
 ## Research questions
 
 1. How much model size can be removed through view-independent importance pruning?
 2. How much additional reduction comes from 16-bit or 8-bit parameter quantization?
-3. How does compression affect rendered quality measured with PSNR and SSIM?
+3. How does compression affect rendered quality measured with PSNR, SSIM, and LPIPS?
 4. Where does aggressive compression create a visible quality cliff?
 5. How does payload size translate into transfer time across illustrative network conditions?
 6. Can importance ordering support useful progressive refinement?
@@ -38,12 +39,12 @@ See [`docs/BONSAI_A100_RESULTS.md`](docs/BONSAI_A100_RESULTS.md) for the measure
 ## System overview
 
 ```text
-3DGS PLY / synthetic scene
+3DGS PLY / trained checkpoint
           │
           ▼
-  GaussianScene model
+  GaussianScene parameters
           │
-          ├────────────── baseline render
+          ├────────────── baseline held-out render
           │
           ▼
   importance scoring
@@ -57,20 +58,20 @@ See [`docs/BONSAI_A100_RESULTS.md`](docs/BONSAI_A100_RESULTS.md) for the measure
           ▼
  compact payload encoding
           │
-          ├────────────── payload bytes / encode time
-          ├────────────── progressive prefixes
+          ├────────────── payload bytes
+          ├────────────── transfer-time estimate
           │
           ▼
- reconstructed scene
+ dequantized scene for evaluation
           │
           ▼
-       rendering
+ full gsplat CUDA rendering
           │
           ▼
- PSNR / SSIM / MAE
+ PSNR / SSIM / LPIPS
           │
           ▼
- size-quality-streaming tradeoff
+ size-quality tradeoff
 ```
 
 ## Core components
@@ -82,6 +83,7 @@ See [`docs/BONSAI_A100_RESULTS.md`](docs/BONSAI_A100_RESULTS.md) for the measure
 - `splatstream/cpu_renderer.py` — deterministic CPU reference renderer for portable validation
 - `splatstream/metrics.py` — PSNR, SSIM, MAE
 - `splatstream/real_ply_experiment.py` — real-PLY compression sanity-check pipeline
+- `tools/full_cuda_rate_distortion_v2.py` — full-scene held-out CUDA rate-distortion evaluator
 - `notebooks/SplatStream_Lab_CUDA_Validation.ipynb` — reproducible CUDA evaluation on Mip-NeRF 360 / Bonsai
 
 ## Quick start
@@ -121,23 +123,20 @@ The CPU renderer is intentionally a reference implementation for compression-sys
 
 ## Reproducible CUDA evaluation
 
-Open the Colab notebook from the badge above and select a GPU runtime. The notebook uses a pinned `gsplat` revision, downloads Mip-NeRF 360 / Bonsai, trains a 7,000-step baseline, exports the checkpoint to PLY, and packages the measured artifacts required to reproduce the run.
+Open the Colab notebook from the badge above and select a GPU runtime. The notebook uses a pinned `gsplat` revision, downloads Mip-NeRF 360 / Bonsai, trains a 7,000-step baseline, exports the checkpoint to PLY, runs the portable sanity check, and then evaluates the full-scene compressed variants on held-out CUDA views.
 
-A successful run produces:
+A complete run produces two evidence bundles:
 
 ```text
 splatstream_bonsai_evidence.zip
-├── environment.json
-├── splatstream_bonsai_7k.log
-├── checkpoint_inventory.txt
-├── ply_inventory.txt
-├── gsplat_results/
-└── portable_sanity/
+splatstream_full_cuda_rd_v2.zip
 ```
+
+The full CUDA bundle includes machine-readable rate-distortion tables, environment metadata, plots, and held-out validation renders.
 
 ## Compression presets
 
-The reference sweep evaluates:
+The full CUDA sweep evaluates:
 
 - baseline float32
 - 25% importance pruning + 16-bit quantization
@@ -145,7 +144,7 @@ The reference sweep evaluates:
 - 50% pruning + 8-bit quantization
 - 75% pruning + 8-bit quantization
 
-The exact operating points depend on scene content and renderer. Reported measurements should always include the corresponding quality metrics and evaluation environment.
+Positions and log-scales are quantized directly. Quaternion components are quantized and renormalized. Opacity is quantized in probability space and converted back to logits for rasterization. SH coefficients remain in coefficient space. For 8-bit storage, per-channel min/max side information is included in payload accounting.
 
 ## Evaluation discipline
 
@@ -154,12 +153,10 @@ For real-scene results, record:
 - dataset and source
 - training/test split
 - Gaussian count
-- baseline PLY size
-- compressed payload size
+- baseline and compressed payload size
 - compression ratio
-- encoding time
 - GPU model and CUDA/PyTorch versions
-- PSNR / SSIM and, when available, LPIPS
+- PSNR / SSIM / LPIPS
 - transfer-time estimates under explicitly stated illustrative bandwidths
 
-Compression ratio is treated as a rate-distortion result rather than a standalone number: model-size reduction is only meaningful together with rendered-quality impact.
+Compression ratio is treated as a rate-distortion result rather than a standalone number: model-size reduction is only meaningful together with rendered-quality impact. Render-time values from a single sweep are retained as measurements but are not used to claim speedup without repeated timing runs.
