@@ -1,0 +1,24 @@
+{
+  "date": "2026-09-08",
+  "dataset": "Mip-NeRF 360 / Bonsai",
+  "steps": 7000,
+  "gpu": "NVIDIA A100-SXM4-40GB",
+  "compute_capability": "8.0",
+  "python": "3.13.15",
+  "torch": "2.11.0+cu128",
+  "torch_cuda": "12.8",
+  "gsplat_commit": "28e794ca44a4c25ffc39175370c5ee7b38bfcc36",
+  "gaussians": 941481,
+  "checkpoint_bytes": 222192501,
+  "ply_bytes": 222190993,
+  "ply_mib": 211.89784336090088,
+  "train_loop_elapsed_seconds": 419.3933176994324,
+  "peak_cuda_memory_gib": 1.5814008712768555,
+  "validation": {
+    "psnr_db": 29.736915588378906,
+    "ssim": 0.9276142716407776,
+    "lpips": 0.15182438492774963,
+    "seconds_per_image": 0.0030298297469680373
+  },
+  "notes": "train_loop_elapsed_seconds is gsplat's ellipse_time field, recorded as time.time() - global_tic at the final checkpoint. The run used first-call CUDA JIT compilation."
+}
