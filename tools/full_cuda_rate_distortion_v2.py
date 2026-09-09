@@ -203,6 +203,9 @@ def main():
     print('GPU:', torch.cuda.get_device_name(0))
     print('PyTorch:', torch.__version__, 'CUDA:', torch.version.cuda)
     print('Base Gaussians:', int(base_splats['means'].shape[0]))
+    print('Bonsai data:', DATA_DIR)
+    if not (DATA_DIR / 'sparse').exists() and not (DATA_DIR / 'sparse/0').exists():
+        raise FileNotFoundError(f'Bonsai COLMAP data is missing under {DATA_DIR}')
 
     OUT.mkdir(parents=True, exist_ok=True)
     eval_root = OUT / 'inprocess_eval'
@@ -214,7 +217,7 @@ def main():
         disable_viewer=True,
         disable_video=True,
         data_factor=2,
-        data_dir='data/360_v2/bonsai',
+        data_dir=str(DATA_DIR),
         result_dir=str(eval_root),
     )
     print('Initializing held-out evaluator once...', flush=True)
@@ -270,6 +273,7 @@ def main():
         'torch_cuda': torch.version.cuda,
         'gsplat_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=GSPLAT_DIR, text=True).strip(),
         'base_checkpoint': str(base_path),
+        'dataset_path': str(DATA_DIR),
         'method': 'single-process held-out evaluation; same Runner/dataset/metric networks reused across presets',
     }
     (OUT / 'environment.json').write_text(json.dumps(env, indent=2))
