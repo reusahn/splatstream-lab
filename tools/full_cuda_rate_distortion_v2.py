@@ -119,14 +119,13 @@ def build_variant(base_splats, order, prune_fraction, bits):
 
 
 def load_simple_trainer():
-    # Import the pinned trainer in-process so CUDA kernels, dataset parsing,
-    # LPIPS weights, and the validation loader are initialized once instead
-    # of once per compression operating point.
     if str(EXAMPLES) not in sys.path:
         sys.path.insert(0, str(EXAMPLES))
-    spec = importlib.util.spec_from_file_location('splatstream_simple_trainer', EXAMPLES / 'simple_trainer.py')
+    module_name = 'splatstream_simple_trainer'
+    spec = importlib.util.spec_from_file_location(module_name, EXAMPLES / 'simple_trainer.py')
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
+    sys.modules[module_name] = mod
     spec.loader.exec_module(mod)
     return mod
 
@@ -218,7 +217,6 @@ def main():
         data_dir='data/360_v2/bonsai',
         result_dir=str(eval_root),
     )
-    # The Runner initialization loads the dataset and metric networks once.
     print('Initializing held-out evaluator once...', flush=True)
     runner = trainer.Runner(0, 0, 1, cfg)
     print('Evaluator ready.', flush=True)
