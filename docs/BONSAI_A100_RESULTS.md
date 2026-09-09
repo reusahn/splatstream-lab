@@ -1,6 +1,6 @@
 # Bonsai A100 CUDA Results
 
-Measured on 2026-09-08 with the reproducible Colab pipeline in this repository.
+Measured on 2026-09-08 with the reproducible Colab pipeline in this repository. This document preserves the first verified baseline-only run. A later rerun was used for the completed full-scene CUDA rate-distortion experiment; see [`BONSAI_FULL_CUDA_RD.md`](BONSAI_FULL_CUDA_RD.md).
 
 ## Environment
 
@@ -45,4 +45,6 @@ The compression harness was then run on a 10,000-Gaussian subset of the real exp
 
 The real-scene CUDA run verifies that the pipeline can train and evaluate a standard 3DGS scene end to end, export a conventional SH/opacity/scale/rotation PLY, and feed that representation into the compression harness.
 
-The 8.45x figure above is **not** a full-scene CUDA rate-distortion result. It is the measured payload reduction on the 10,000-Gaussian portable sanity subset, and its PSNR/SSIM values come from the intentionally simplified CPU DC-only reference renderer. The next experiment should apply the same compressed variants to the full 941,481-Gaussian scene and evaluate them on the held-out gsplat CUDA views.
+The 8.45x figure above is **not** a full-scene CUDA rate-distortion result. It is the measured payload reduction on the 10,000-Gaussian portable sanity subset, and its PSNR/SSIM values come from the intentionally simplified CPU DC-only reference renderer.
+
+The planned next step described in the original version of this document has now been completed. The full-scene rerun contained 947,033 Gaussians and measured the same pruning/quantization family directly on held-out `gsplat` CUDA views. See [`BONSAI_FULL_CUDA_RD.md`](BONSAI_FULL_CUDA_RD.md) and [`../results/bonsai_a100_full_rd/`](../results/bonsai_a100_full_rd/).
