@@ -8,6 +8,23 @@ SplatStream Lab is a research harness for studying how pruning, quantization, co
 
 The project separates portable systems validation from full GPU rendering so that compression logic, payload accounting, and experiment orchestration remain reproducible on CPU while real-scene evaluation is performed with CUDA.
 
+## Verified real-scene result
+
+A reproducible 7,000-step `gsplat` run on **Mip-NeRF 360 / Bonsai** was completed on an **NVIDIA A100-SXM4-40GB**. The resulting scene contained **941,481 Gaussians** and exported to a **211.90 MiB PLY**.
+
+| Held-out gsplat metric | Result |
+| --- | ---: |
+| PSNR | **29.7369 dB** |
+| SSIM | **0.927614** |
+| LPIPS | **0.151824** |
+| Render time | **0.00303 s/image** |
+| Training-loop elapsed | **419.39 s** |
+| Peak CUDA memory | **1.5814 GiB** |
+
+A follow-up compression sanity sweep on a 10,000-Gaussian subset of the exported real PLY measured payload reductions from **2.67x to 8.45x**, depending on pruning and quantization settings. Those subset quality numbers use the portable CPU DC-only reference renderer and are intentionally kept separate from the full held-out CUDA metrics above.
+
+See [`docs/BONSAI_A100_RESULTS.md`](docs/BONSAI_A100_RESULTS.md) for the measured environment, caveats, and compression table. Machine-readable results are under [`results/bonsai_a100_7k/`](results/bonsai_a100_7k/).
+
 ## Research questions
 
 1. How much model size can be removed through view-independent importance pruning?
