@@ -43,13 +43,26 @@ def main() -> int:
     print('=== NeuralScene Bench: install tiny-cuda-nn ===', flush=True)
     print('Pinned tiny-cuda-nn commit:', TCNN_COMMIT, flush=True)
     print('Target GPU architecture: A100 / sm_80', flush=True)
+    print('Build isolation: disabled because tiny-cuda-nn setup.py imports torch during build metadata generation', flush=True)
 
-    rc = run([PY, '-m', 'pip', 'install', '--upgrade', 'ninja', 'setuptools', 'wheel'], env)
+    rc = run([PY, '-m', 'pip', 'install', '--upgrade', 'ninja', 'setuptools', 'wheel', 'packaging'], env)
     if rc != 0:
         print('Dependency setup failed.')
         return rc
 
-    rc = run([PY, '-m', 'pip', 'install', '--no-cache-dir', TCNN_SPEC], env)
+    # tiny-cuda-nn's bindings/torch/setup.py imports torch at module import time.
+    # With modern pip's isolated PEP 517 build environment, torch is absent while
+    # pip is only trying to generate wheel requirements/metadata. Reuse the
+    # benchmark environment so the pinned torch/CUDA installation is visible.
+    rc = run([
+        PY,
+        '-m',
+        'pip',
+        'install',
+        '--no-build-isolation',
+        '--no-cache-dir',
+        TCNN_SPEC,
+    ], env)
     if rc != 0:
         print('TCNN build/install failed.')
         return rc
