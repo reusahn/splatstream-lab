@@ -103,7 +103,8 @@ def summarize_result(result_dir: Path, wall_seconds: float) -> dict[str, Any]:
         "lpips": find_metric(val, {"lpips"}),
         "seconds_per_image": find_metric(val, {"ellipse_time", "seconds_per_image", "render_time"}),
         "train_loop_seconds": find_metric(train, {"ellipse_time", "elapsed", "elapsed_seconds", "train_time"}),
-        "peak_memory_bytes": find_metric(train, {"mem", "memory", "max_memory_allocated", "peak_memory"}),
+        # gsplat simple_trainer records `mem = torch.cuda.max_memory_allocated() / 1024**3`.
+        "peak_memory_gib": find_metric(train, {"mem"}),
     }
 
     if ckpt:
@@ -120,7 +121,7 @@ def summarize_result(result_dir: Path, wall_seconds: float) -> dict[str, Any]:
 
 def build_command(preset: dict[str, Any], *, examples: Path, data_dir: Path, result_dir: Path) -> list[str]:
     steps = int(preset["max_steps"])
-    cmd = [
+    return [
         sys.executable,
         "simple_trainer.py",
         "default",
@@ -145,7 +146,6 @@ def build_command(preset: dict[str, Any], *, examples: Path, data_dir: Path, res
         "--sh_degree_interval",
         str(int(preset["sh_degree_interval"])),
     ]
-    return cmd
 
 
 def main() -> None:
@@ -190,15 +190,31 @@ def main() -> None:
         )
 
     config = load_json(args.config)
-    presets = config["presets"]
+    all_presets = config["presets"]
+    presets = all_presets
     if args.only:
         wanted = set(args.only)
-        presets = [p for p in presets if p["name"] in wanted]
+        presets = [p for p in all_presets if p["name"] in wanted]
         missing = wanted - {p["name"] for p in presets}
         if missing:
             raise ValueError(f"Unknown preset(s): {sorted(missing)}")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    out = args.output_dir / "training_efficiency_results.json"
+
+    existing_by_name: dict[str, dict[str, Any]] = {}
+    if out.exists() and not args.overwrite:
+        previous = load_json(out)
+        if previous.get("gsplat_commit") == actual_commit and previous.get("dataset") == config["dataset"]:
+            for item in previous.get("presets", []):
+                preset_obj = item.get("preset", {})
+                name = preset_obj.get("name")
+                if name:
+                    # Normalize the original pilot schema, whose field name incorrectly said bytes.
+                    if "peak_memory_gib" not in item and "peak_memory_bytes" in item:
+                        item["peak_memory_gib"] = item.pop("peak_memory_bytes")
+                    existing_by_name[name] = item
+
     manifest: dict[str, Any] = {
         "study": config["study"],
         "dataset": config["dataset"],
@@ -223,29 +239,41 @@ def main() -> None:
         print("Command:", " ".join(cmd))
 
         if args.dry_run:
-            manifest["presets"].append({"preset": preset, "command": cmd, "dry_run": True})
+            print("Dry run only; no manifest is modified.")
             continue
 
         if result_dir.exists() and args.overwrite:
             shutil.rmtree(result_dir)
+            existing_by_name.pop(name, None)
+
         if result_dir.exists() and newest(result_dir, "*.pt") is not None:
             print("Existing checkpoint found; summarizing without rerunning.")
-            wall_seconds = 0.0
+            old = existing_by_name.get(name, {})
+            wall_seconds = float(old.get("wall_seconds_external", 0.0) or 0.0)
         else:
             wall_seconds = run_live(cmd, cwd=examples, env=env, log_path=log_path)
 
         summary = summarize_result(result_dir, wall_seconds)
         summary["preset"] = preset
         summary["command"] = cmd
-        manifest["presets"].append(summary)
-        (args.output_dir / "training_efficiency_results.json").write_text(
-            json.dumps(manifest, indent=2)
-        )
+        existing_by_name[name] = summary
 
-    out = args.output_dir / "training_efficiency_results.json"
-    out.write_text(json.dumps(manifest, indent=2))
-    print("\nWrote:", out)
-    print("Important: do not claim a speed/quality improvement until repeated runs are complete.")
+        manifest["presets"] = [
+            existing_by_name[p["name"]]
+            for p in all_presets
+            if p["name"] in existing_by_name
+        ]
+        out.write_text(json.dumps(manifest, indent=2))
+
+    if not args.dry_run:
+        manifest["presets"] = [
+            existing_by_name[p["name"]]
+            for p in all_presets
+            if p["name"] in existing_by_name
+        ]
+        out.write_text(json.dumps(manifest, indent=2))
+        print("\nWrote:", out)
+        print("Important: do not claim a speed/quality improvement until repeated runs are complete.")
 
 
 if __name__ == "__main__":
