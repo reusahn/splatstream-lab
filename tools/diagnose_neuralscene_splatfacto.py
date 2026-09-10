@@ -34,11 +34,13 @@ def main():
         PY,
         '-c',
         "import torch, gsplat, nerfstudio; "
+        "from PIL import __version__ as pillow_version; "
         "print('torch', torch.__version__); "
         "print('torch cuda', torch.version.cuda); "
         "print('cuda available', torch.cuda.is_available()); "
         "print('gpu', torch.cuda.get_device_name(0) if torch.cuda.is_available() else None); "
         "print('gsplat', getattr(gsplat, '__version__', 'unknown')); "
+        "print('Pillow', pillow_version); "
         "print('nerfstudio', getattr(nerfstudio, '__version__', 'source-checkout'))"
     ], env=env)
 
@@ -56,8 +58,10 @@ def main():
         '--vis', 'tensorboard',
         'colmap',
         '--data', DATA,
-        '--images-path', 'images_2',
+        '--images-path', 'images',
         '--colmap-path', 'sparse/0',
+        '--downscale-factor', '2',
+        '--downscale-rounding-mode', 'ceil',
         '--eval-mode', 'interval',
         '--eval-interval', '8',
     ]
