@@ -10,13 +10,15 @@ This is a **single-run pilot**. The numbers below are measured, but the apparent
 
 The external wall time of the first 7k run was 5045.9 s because it included one-time setup/JIT overhead. For schedule comparison, this document uses `train_loop_seconds`.
 
+The pinned gsplat trainer calls `set_random_seed(42 + local_rank)`, so these single-GPU conditions use the same nominal random seed. Repeats are still required for timing variance and possible GPU nondeterminism.
+
 ## Measured pilot
 
-| Preset | Train loop | Gaussians | Checkpoint | PSNR | SSIM | LPIPS |
-|---|---:|---:|---:|---:|---:|---:|
-| baseline_7k | 421.8 s | 944,291 | 212.53 MiB | 29.6619 | 0.924574 | 0.152724 |
-| early_stop_5k | 299.7 s | 920,498 | 207.18 MiB | 29.5314 | 0.925716 | 0.156233 |
-| densify_stop_3k_5k | 299.9 s | 839,074 | 188.85 MiB | 30.1942 | 0.930217 | 0.150745 |
+| Preset | Train loop | Peak CUDA mem | Gaussians | Checkpoint | PSNR | SSIM | LPIPS |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| baseline_7k | 421.8 s | 1.583 GiB | 944,291 | 212.53 MiB | 29.6619 | 0.924574 | 0.152724 |
+| early_stop_5k | 299.7 s | 1.456 GiB | 920,498 | 207.18 MiB | 29.5314 | 0.925716 | 0.156233 |
+| densify_stop_3k_5k | 299.9 s | 1.364 GiB | 839,074 | 188.85 MiB | 30.1942 | 0.930217 | 0.150745 |
 
 ## Preliminary interpretation
 
@@ -25,22 +27,23 @@ Relative to the 7k baseline, `early_stop_5k` reduced the measured training loop 
 The strongest pilot point was `densify_stop_3k_5k`. Relative to the 7k baseline it used:
 
 - **28.9% less training-loop time**
+- **13.8% lower peak CUDA memory**
 - **11.1% fewer Gaussians**
 - **11.1% smaller checkpoint**
 
 In this one run it also measured **+0.53 dB PSNR**, **+0.0056 SSIM**, and **-0.0020 LPIPS** relative to baseline.
 
-That quality increase is encouraging but **not yet a publishable speed/quality claim**. It could be affected by stochastic training variation. Repeat runs with controlled seeds are required.
+That quality increase is encouraging but **not yet a publishable speed/quality claim**. The fixed nominal seed makes the comparison more meaningful, but repeat runs are still required before treating the quality gain as stable.
 
 ## Important negative / cautionary measurement
 
 `densify_stop_3k_5k` did **not** render faster in this pilot. The recorded seconds-per-image increased from 0.003041 s to 0.003718 s. Do not claim render-speed improvement from the lower Gaussian count without repeated timing analysis.
 
-The field called `peak_memory_bytes` in the JSON contains values around 1.3-1.6 and appears to be a GiB-scale trainer statistic rather than literal bytes. Do not publish a memory reduction claim until the source field/unit is verified.
+The original pilot JSON used the field name `peak_memory_bytes`, but the pinned gsplat trainer actually records `torch.cuda.max_memory_allocated() / 1024**3`. The values are therefore **GiB**, not bytes. The sweep runner has been corrected to emit `peak_memory_gib` going forward.
 
 ## Next experiment
 
-1. Repeat `baseline_7k` and `densify_stop_3k_5k` at least two more times with controlled/reported seeds.
-2. Run the remaining schedule presets only after the repeat path is stable.
+1. Run the remaining three Bonsai presets: `early_stop_3p5k`, `sparse_refine_5k`, and `densify_stop_3k_shfast_5k`.
+2. Repeat the strongest baseline/candidate pair after the sweep to estimate timing variance and confirm quality stability.
 3. Add a second scene, preferably `garden`, to test whether the early densification stop generalizes to high-frequency outdoor content.
 4. Use repeated mean/std for training time and quality in the final portfolio.
