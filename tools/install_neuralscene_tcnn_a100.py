@@ -12,6 +12,7 @@ TCNN_SPEC = (
     + TCNN_COMMIT
     + '#subdirectory=bindings/torch'
 )
+SETUPTOOLS_VERSION = '81.0.0'
 
 
 def run(cmd, env):
@@ -44,16 +45,38 @@ def main() -> int:
     print('Pinned tiny-cuda-nn commit:', TCNN_COMMIT, flush=True)
     print('Target GPU architecture: A100 / sm_80', flush=True)
     print('Build isolation: disabled because tiny-cuda-nn setup.py imports torch during build metadata generation', flush=True)
+    print('Setuptools pinned to:', SETUPTOOLS_VERSION, 'because tiny-cuda-nn setup.py imports pkg_resources', flush=True)
 
-    rc = run([PY, '-m', 'pip', 'install', '--upgrade', 'ninja', 'setuptools', 'wheel', 'packaging'], env)
+    # tiny-cuda-nn setup.py imports `pkg_resources.parse_version`.
+    # Setuptools 82+ removed pkg_resources, so use the last compatible major line
+    # in this isolated benchmark venv for building the extension.
+    rc = run([
+        PY,
+        '-m',
+        'pip',
+        'install',
+        '--upgrade',
+        'ninja',
+        f'setuptools=={SETUPTOOLS_VERSION}',
+        'wheel',
+        'packaging',
+    ], env)
     if rc != 0:
         print('Dependency setup failed.')
         return rc
 
-    # tiny-cuda-nn's bindings/torch/setup.py imports torch at module import time.
-    # With modern pip's isolated PEP 517 build environment, torch is absent while
-    # pip is only trying to generate wheel requirements/metadata. Reuse the
-    # benchmark environment so the pinned torch/CUDA installation is visible.
+    rc = run([
+        PY,
+        '-c',
+        "import setuptools, pkg_resources, torch; "
+        "print('setuptools', setuptools.__version__); "
+        "print('pkg_resources import OK'); "
+        "print('torch', torch.__version__, 'cuda', torch.version.cuda)",
+    ], env)
+    if rc != 0:
+        print('Build preflight failed.')
+        return rc
+
     rc = run([
         PY,
         '-m',
