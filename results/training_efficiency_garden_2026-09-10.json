@@ -1,0 +1,74 @@
+{
+  "study": "3DGS training-time / quality trade-off — Garden validation",
+  "dataset": "Mip-NeRF 360 / Garden",
+  "gsplat_commit": "28e794ca44a4c25ffc39175370c5ee7b38bfcc36",
+  "python": "3.13.15 (main, Aug  6 2026, 11:06:22) [GCC 13.3.0]",
+  "torch": "2.11.0+cu128",
+  "torch_cuda": "12.8",
+  "gpu": "NVIDIA A100-SXM4-40GB",
+  "presets": [
+    {
+      "wall_seconds_external": 5752.663255929947,
+      "validation_stats_file": "/content/gsplat/examples/results/splatstream_training_efficiency_garden/baseline_7k/stats/val_step6999.json",
+      "training_stats_file": "/content/gsplat/examples/results/splatstream_training_efficiency_garden/baseline_7k/stats/train_step6999_rank0.json",
+      "checkpoint": "/content/gsplat/examples/results/splatstream_training_efficiency_garden/baseline_7k/ckpts/ckpt_6999_rank0.pt",
+      "checkpoint_bytes": 620224245,
+      "psnr": 25.048416137695312,
+      "ssim": 0.7284185886383057,
+      "lpips": 0.2889137268066406,
+      "seconds_per_image": 0.007572104533513387,
+      "train_loop_seconds": 999.3207898139954,
+      "peak_memory_gib": 4.0525336265563965,
+      "gaussians": 2628056,
+      "preset": {
+        "name": "baseline_7k",
+        "max_steps": 7000,
+        "refine_stop_iter": 7000,
+        "refine_every": 100,
+        "sh_degree_interval": 1000
+      }
+    },
+    {
+      "wall_seconds_external": 807.6913733482361,
+      "validation_stats_file": "/content/gsplat/examples/results/splatstream_training_efficiency_garden/densify_stop_3k_shfast_5k/stats/val_step4999.json",
+      "training_stats_file": "/content/gsplat/examples/results/splatstream_training_efficiency_garden/densify_stop_3k_shfast_5k/stats/train_step4999_rank0.json",
+      "checkpoint": "/content/gsplat/examples/results/splatstream_training_efficiency_garden/densify_stop_3k_shfast_5k/ckpts/ckpt_4999_rank0.pt",
+      "checkpoint_bytes": 312730613,
+      "psnr": 24.59047508239746,
+      "ssim": 0.6878455877304077,
+      "lpips": 0.3536483645439148,
+      "seconds_per_image": 0.006471484899520874,
+      "train_loop_seconds": 699.4912307262421,
+      "peak_memory_gib": 2.5540542602539062,
+      "gaussians": 1325117,
+      "preset": {
+        "name": "densify_stop_3k_shfast_5k",
+        "max_steps": 5000,
+        "refine_stop_iter": 3000,
+        "refine_every": 100,
+        "sh_degree_interval": 500
+      }
+    },
+    {
+      "wall_seconds_external": 800.3853409290314,
+      "validation_stats_file": "/content/gsplat/examples/results/splatstream_training_efficiency_garden/sparse_refine_5k/stats/val_step4999.json",
+      "training_stats_file": "/content/gsplat/examples/results/splatstream_training_efficiency_garden/sparse_refine_5k/stats/train_step4999_rank0.json",
+      "checkpoint": "/content/gsplat/examples/results/splatstream_training_efficiency_garden/sparse_refine_5k/ckpts/ckpt_4999_rank0.pt",
+      "checkpoint_bytes": 220793781,
+      "psnr": 24.323196411132812,
+      "ssim": 0.6750551462173462,
+      "lpips": 0.37498733401298523,
+      "seconds_per_image": 0.004999299844106038,
+      "train_loop_seconds": 692.3740520477295,
+      "peak_memory_gib": 2.1021251678466797,
+      "gaussians": 935554,
+      "preset": {
+        "name": "sparse_refine_5k",
+        "max_steps": 5000,
+        "refine_stop_iter": 4000,
+        "refine_every": 200,
+        "sh_degree_interval": 1000
+      }
+    }
+  ]
+}
