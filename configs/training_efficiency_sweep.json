@@ -1,0 +1,50 @@
+{
+  "study": "3DGS training-time / quality trade-off",
+  "dataset": "Mip-NeRF 360 / Bonsai",
+  "gsplat_commit": "28e794ca44a4c25ffc39175370c5ee7b38bfcc36",
+  "notes": "No result in this file is a claim. Each preset must be run on the same GPU/runtime and evaluated on the same held-out split.",
+  "presets": [
+    {
+      "name": "baseline_7k",
+      "max_steps": 7000,
+      "refine_stop_iter": 7000,
+      "refine_every": 100,
+      "sh_degree_interval": 1000
+    },
+    {
+      "name": "early_stop_5k",
+      "max_steps": 5000,
+      "refine_stop_iter": 5000,
+      "refine_every": 100,
+      "sh_degree_interval": 1000
+    },
+    {
+      "name": "early_stop_3p5k",
+      "max_steps": 3500,
+      "refine_stop_iter": 3500,
+      "refine_every": 100,
+      "sh_degree_interval": 1000
+    },
+    {
+      "name": "densify_stop_3k_5k",
+      "max_steps": 5000,
+      "refine_stop_iter": 3000,
+      "refine_every": 100,
+      "sh_degree_interval": 1000
+    },
+    {
+      "name": "sparse_refine_5k",
+      "max_steps": 5000,
+      "refine_stop_iter": 4000,
+      "refine_every": 200,
+      "sh_degree_interval": 1000
+    },
+    {
+      "name": "densify_stop_3k_shfast_5k",
+      "max_steps": 5000,
+      "refine_stop_iter": 3000,
+      "refine_every": 100,
+      "sh_degree_interval": 500
+    }
+  ]
+}
