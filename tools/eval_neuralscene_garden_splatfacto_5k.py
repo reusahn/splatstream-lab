@@ -7,7 +7,7 @@ from pathlib import Path
 
 VENV = Path('/content/neuralscene-env')
 NS_EVAL = VENV / 'bin/ns-eval'
-ROOT = Path('/content/outputs/neuralscene_bench_garden/bonsai-bench/splatfacto')
+ROOT = Path('/content/outputs/neuralscene_bench_garden/garden-bench/splatfacto')
 OUT = Path('/content/outputs/neuralscene_bench_garden/splatfacto_5k_eval.json')
 RENDERS = Path('/content/outputs/neuralscene_bench_garden/splatfacto_5k_eval_renders')
 
