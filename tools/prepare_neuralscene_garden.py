@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import shutil
 import zipfile
 from pathlib import Path
@@ -9,7 +8,6 @@ import fsspec
 
 SOURCE_URL = "https://storage.googleapis.com/gresearch/refraw360/360_v2.zip"
 DATA_ROOT = Path("/content/data/mipnerf360/garden")
-TEMP_ZIP = Path("/content/mipnerf360_garden_source.zip")
 SCENE_PREFIX = "garden/"
 
 
@@ -17,41 +15,40 @@ def main() -> None:
     print("=== NeuralScene Bench: prepare Mip-NeRF 360 Garden ===")
     print("Source:", SOURCE_URL)
     print("Target:", DATA_ROOT)
+    print("Mode: HTTP range extraction, only garden/images_2 and garden/sparse")
 
     if DATA_ROOT.exists():
         shutil.rmtree(DATA_ROOT)
     DATA_ROOT.mkdir(parents=True, exist_ok=True)
-
-    if TEMP_ZIP.exists():
-        TEMP_ZIP.unlink()
-
-    fs = fsspec.filesystem("http")
-    with fs.open(SOURCE_URL, "rb") as src, open(TEMP_ZIP, "wb") as dst:
-        shutil.copyfileobj(src, dst, length=16 * 1024 * 1024)
 
     wanted_prefixes = (
         f"{SCENE_PREFIX}images_2/",
         f"{SCENE_PREFIX}sparse/",
     )
 
-    with zipfile.ZipFile(TEMP_ZIP) as zf:
-        members = [m for m in zf.namelist() if m.startswith(wanted_prefixes)]
-        if not members:
-            raise RuntimeError("Garden images_2/sparse members were not found in source archive.")
+    fs = fsspec.filesystem("http")
+    with fs.open(SOURCE_URL, "rb", block_size=8 * 1024 * 1024) as remote:
+        with zipfile.ZipFile(remote) as zf:
+            members = [m for m in zf.namelist() if m.startswith(wanted_prefixes)]
+            if not members:
+                raise RuntimeError("Garden images_2/sparse members were not found in source archive.")
 
-        for member in members:
-            rel = Path(member).relative_to(SCENE_PREFIX)
-            target = DATA_ROOT / rel
-            if member.endswith("/"):
-                target.mkdir(parents=True, exist_ok=True)
-                continue
-            target.parent.mkdir(parents=True, exist_ok=True)
-            with zf.open(member) as src, open(target, "wb") as dst:
-                shutil.copyfileobj(src, dst)
+            print("Selected archive members:", len(members))
+            for idx, member in enumerate(members, start=1):
+                rel = Path(member).relative_to(SCENE_PREFIX)
+                target = DATA_ROOT / rel
+                if member.endswith("/"):
+                    target.mkdir(parents=True, exist_ok=True)
+                    continue
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with zf.open(member) as src, open(target, "wb") as dst:
+                    shutil.copyfileobj(src, dst, length=8 * 1024 * 1024)
+                if idx % 50 == 0:
+                    print(f"Extracted {idx}/{len(members)} members")
 
-    images = sorted((DATA_ROOT / "images_2").glob("*"))
+    images = sorted(p for p in (DATA_ROOT / "images_2").glob("*") if p.is_file())
     sparse = DATA_ROOT / "sparse" / "0"
-    colmap_files = [p.name for p in sparse.glob("*") if p.is_file()]
+    colmap_files = sorted(p.name for p in sparse.glob("*") if p.is_file())
 
     print("Garden root:", DATA_ROOT)
     print("images_2 exists:", (DATA_ROOT / "images_2").exists())
